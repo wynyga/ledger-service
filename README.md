@@ -1,7 +1,7 @@
 # Ledger service
 
 A double-entry ledger with a REST API: the core of an e-wallet or a bank's internal transfers, built with Spring
-Boot 4, Spring Security (JWT), Java 21 and PostgreSQL.
+Boot 4, Spring Security (JWT), Java 21, PostgreSQL and Kafka.
 
 It focuses on the parts of moving money that are easy to get wrong:
 
@@ -15,6 +15,9 @@ It focuses on the parts of moving money that are easy to get wrong:
   parallel transfers queue instead of racing, and opposite transfers (A→B and B→A) cannot deadlock.
 - **Only the owner spends.** JWT bearer tokens (Spring Security resource server, HS256). A user moves money only out
   of their own accounts; deposits and reconciliation need the admin scope. Other people's accounts answer `404`.
+- **Events are never lost or invented.** Every transfer writes a `TransferPosted` event to an outbox table in the
+  same transaction; a relay sends it to Kafka (`ledger.transfers`) and marks it only after the broker acknowledged
+  it. If Kafka is down, transfers keep working and the events follow, in order, when it is back.
 - **History is append-only.** Database triggers refuse any `UPDATE` or `DELETE` on transfers and entries.
 
 The design is in [docs/DESIGN.md](docs/DESIGN.md).
@@ -25,7 +28,9 @@ The design is in [docs/DESIGN.md](docs/DESIGN.md).
 domain/                  Account, Transfer, Entry, posting rules        plain Java
 application/             use cases + ports (AccountStore, TransferStore, TransactionRunner, ...)   plain Java
 adapter/in/web/          REST controllers, DTOs, security filter chain, RFC 9457 problem details
-adapter/out/persistence/ JPA entities, Spring Data repositories, JDBC reconciliation
+adapter/in/scheduling/   outbox relay trigger
+adapter/out/persistence/ JPA entities, Spring Data repositories, JDBC reconciliation and outbox
+adapter/out/messaging/   Kafka publisher
 adapter/out/security/    BCrypt password hashing, JWT signing
 config/                  composition root
 ```
@@ -38,7 +43,7 @@ if the web and persistence adapters depend on each other.
 Needs JDK 21 or newer and Docker. Maven comes with the wrapper.
 
 ```bash
-docker compose up -d                       # PostgreSQL on localhost:5440
+docker compose up -d                       # PostgreSQL on :5440, Kafka (KRaft) on :9094
 export JWT_SECRET=$(openssl rand -base64 32)
 export ADMIN_PASSWORD='choose-a-long-one'  # creates the user "admin" at startup
 ./mvnw spring-boot:run                     # http://localhost:8080
@@ -47,7 +52,7 @@ export ADMIN_PASSWORD='choose-a-long-one'  # creates the user "admin" at startup
 On Windows PowerShell: `$env:ADMIN_PASSWORD = "choose-a-long-one"` and `.\mvnw.cmd spring-boot:run`. Without
 `JWT_SECRET` a random key is used and tokens stop working when the app restarts.
 
-Or without compose, with a throwaway database started by Testcontainers: `./mvnw spring-boot:test-run`.
+Or without compose, with a throwaway PostgreSQL and Kafka started by Testcontainers: `./mvnw spring-boot:test-run`.
 
 ## Try it
 
@@ -90,7 +95,7 @@ deposits come from.
 | POST | `/api/v1/deposits` | admin | money in (needs `Idempotency-Key`) |
 | GET | `/api/v1/reconciliation` | admin | check the books |
 | GET | `/actuator/health` | anyone | liveness |
-| GET | `/actuator/prometheus` | admin | metrics |
+| GET | `/actuator/prometheus` | admin | metrics, including `ledger_outbox_pending` |
 
 Errors are `application/problem+json` with a stable `code`, for example `INSUFFICIENT_FUNDS` (422),
 `IDEMPOTENCY_KEY_REUSED` (409), `ACCOUNT_NOT_FOUND` (404), `UNAUTHENTICATED` (401) or `FORBIDDEN` (403).
@@ -109,10 +114,30 @@ Integration tests run against a real PostgreSQL 17 in Docker (Testcontainers). B
 | 20 parallel requests with the same Idempotency-Key | one transfer, 19 replays, money moves once |
 | 400 random transfers in both directions on 16 threads | no deadlock, no negative balance, total unchanged, reconciliation clean |
 
+Integration tests run on a real Kafka broker too. `OutboxTests` checks that a transfer arrives on the topic with
+its `event-id` header and is marked published, and that a refused transfer leaves no event. `OutboxRelayTest` checks
+the relay rules with fakes: oldest first, a failure stops the batch so nothing overtakes it, exponential backoff, and
+catching up in order afterwards.
+
 `SecurityTests` covers missing, malformed, tampered, expired and foreign-issuer tokens, account and transfer
 ownership, admin-only operations, per-user idempotency keys, and the registration and login rules.
 
+## Broker outage drill
+
+Run against `docker compose` (PostgreSQL + Kafka) with `docker compose stop kafka` for 25 seconds:
+
+| Step | Result |
+|---|---|
+| 3 transfers while Kafka is down | all `201 Created`, balances updated |
+| `ledger_outbox_pending` during the outage | `3` |
+| oldest event | 3 failed attempts with backoff, recorded in `outbox.attempts` / `last_error` |
+| the two newer events | not attempted before the oldest succeeded (`attempts = 0`) |
+| after `docker compose start kafka` | backlog `0` within ~2 s, all three published in order |
+
+Delivery is at least once: a crash between the broker's acknowledgement and the commit sends the event again, so
+consumers deduplicate on `eventId`.
+
 ## Next
 
-Refresh tokens and revocation, a transactional outbox to Kafka, a k6 load test with published
+Refresh tokens and revocation, a k6 load test with published
 numbers, and authorise/capture holds. See the last section of the design.

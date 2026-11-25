@@ -19,12 +19,15 @@ public class TransferService {
 
     private final AccountStore accounts;
     private final TransferStore transfers;
+    private final Outbox outbox;
     private final TransactionRunner tx;
     private final Clock clock;
 
-    public TransferService(AccountStore accounts, TransferStore transfers, TransactionRunner tx, Clock clock) {
+    public TransferService(AccountStore accounts, TransferStore transfers, Outbox outbox, TransactionRunner tx,
+            Clock clock) {
         this.accounts = accounts;
         this.transfers = transfers;
+        this.outbox = outbox;
         this.tx = tx;
         this.clock = clock;
     }
@@ -93,6 +96,8 @@ public class TransferService {
         transfers.insert(transfer);
         accounts.saveBalance(debit);
         accounts.saveBalance(credit);
+        // Same transaction: the event exists exactly when the transfer does.
+        outbox.transferPosted(transfer);
         return transfer;
     }
 

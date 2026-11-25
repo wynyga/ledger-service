@@ -77,6 +77,39 @@ Errors are RFC 9457 problem details (`application/problem+json`) with a stable `
 `INSUFFICIENT_FUNDS`, `CURRENCY_MISMATCH`, `SAME_ACCOUNT`, `ACCOUNT_INACTIVE` (422), `IDEMPOTENCY_KEY_REUSED` (409),
 `VALIDATION_FAILED` and `IDEMPOTENCY_KEY_MISSING` (400).
 
+## Events: transactional outbox
+
+Other systems (notifications, fraud checks, a data warehouse) need to know when money moved. Publishing to Kafka
+straight from the transfer code has two failure modes: the transfer commits but the broker is down (event lost), or
+the event is sent and then the transaction rolls back (event for a transfer that never happened). The outbox removes
+both:
+
+```
+transfer transaction                         relay (every 500 ms, separate transaction)
+  INSERT transfer, entries                     SELECT ... FROM outbox WHERE published_at IS NULL
+  UPDATE balances                                ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED
+  INSERT outbox (TransferPosted)               for each row: send to Kafka, wait for the ack (acks=all)
+COMMIT  -- all or nothing                        ok   -> published_at = now()
+                                                 fail -> attempts + 1, last_error; stop the batch, back off
+```
+
+- **At least once.** A crash after Kafka acknowledged but before `published_at` committed sends the event again.
+  Every message carries an `event-id` header (and `eventId` in the body) so consumers can drop duplicates.
+- **Order.** Rows are relayed in insertion order and a failed row stops the batch, so a later event never overtakes an
+  earlier one. The message key is the transfer id.
+- **Several instances.** `FOR UPDATE SKIP LOCKED` lets every instance run a relay without sending the same row twice
+  at the same time.
+- **Broker down.** Transfers keep working; rows pile up in the outbox and the relay retries with exponential backoff
+  (1 s doubling to 60 s). `ledger.outbox.pending` (Micrometer gauge) shows the backlog.
+
+Message on topic `ledger.transfers`:
+
+```json
+{"eventId":"...","eventType":"TransferPosted","occurredAt":"2026-11-25T04:09:53.883526Z","transferId":"...",
+ "transferType":"TRANSFER","debitAccountId":"...","creditAccountId":"...","amount":30000,"currency":"IDR",
+ "requestedBy":"..."}
+```
+
 ## Security
 
 Stateless bearer tokens, using Spring Security's own OAuth2 resource server support (no extra JWT library).
@@ -135,11 +168,11 @@ adapter implements it with `TransactionTemplate`.
     balance, reconciliation is clean and the total is unchanged.
 - **Security tests**: missing, malformed, tampered, expired and foreign-issuer tokens; ownership of accounts and
   transfers; admin-only deposits and reconciliation; per-user idempotency keys; registration and login rules.
+- **Outbox tests**: the relay against fakes (order, stop on failure, backoff, recovery), and end to end with a real
+  Kafka broker (Testcontainers): a transfer arrives on the topic, a refused transfer never does.
 - **Architecture test** (ArchUnit): `domain` and `application` do not depend on Spring, Jakarta or the adapters.
 
 ## Later phases
 
-1. **Outbox**: an `outbox` row written in the same transaction as the transfer, relayed to Kafka by a scheduled
-   publisher, so a `TransferPosted` event is never lost and never sent for a rolled-back transfer.
-2. **Load test**: k6 script and published numbers (transfers per second, p99 latency, zero reconciliation difference).
-3. **Holds**: authorise-then-capture (reserve funds, then settle or release), as card payments do.
+1. **Load test**: k6 script and published numbers (transfers per second, p99 latency, zero reconciliation difference).
+2. **Holds**: authorise-then-capture (reserve funds, then settle or release), as card payments do.
