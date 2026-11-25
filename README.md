@@ -89,6 +89,22 @@ curl -s localhost:8080/api/v1/accounts/A/entries -H "Authorization: Bearer $ALIC
 curl -s localhost:8080/api/v1/reconciliation -H "Authorization: Bearer $ADMIN"
 ```
 
+### With Postman
+
+Import [`postman/ledger-service.postman_collection.json`](postman/ledger-service.postman_collection.json) and set the
+collection variable `adminPassword` to the `ADMIN_PASSWORD` the service runs with (`baseUrl` defaults to
+`http://localhost:8080`). Run the whole collection with the Runner, or click through the folders in order: sign up,
+accounts and a deposit, an idempotent transfer and its replay, a hold with partial capture, the access rules, and
+reconciliation. The test scripts save tokens and ids into variables, so nothing needs copying, and every request
+checks its own answer (49 assertions). Usernames and keys are fresh on every run.
+
+The same collection runs headless with Newman:
+
+```bash
+docker run --rm --network ledger-service_default -v "$PWD/postman:/etc/newman" postman/newman:alpine \
+  run ledger-service.postman_collection.json --env-var baseUrl=http://app:8080 --env-var adminPassword='choose-a-long-one'
+```
+
 Amounts are integers in minor units (`1` = Rp1). IDR and USD are supported: each has a system funding account that
 deposits come from.
 
