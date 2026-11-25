@@ -1,0 +1,16 @@
+package io.github.wynyga.ledger.domain;
+
+/** Stable error codes. The web layer maps each one to an HTTP status; clients can rely on the names. */
+public enum ErrorCode {
+    ACCOUNT_NOT_FOUND,
+    TRANSFER_NOT_FOUND,
+    ACCOUNT_INACTIVE,
+    INSUFFICIENT_FUNDS,
+    CURRENCY_MISMATCH,
+    CURRENCY_NOT_SUPPORTED,
+    SAME_ACCOUNT,
+    INVALID_AMOUNT,
+    BALANCE_OVERFLOW,
+    IDEMPOTENCY_KEY_INVALID,
+    IDEMPOTENCY_KEY_REUSED
+}
