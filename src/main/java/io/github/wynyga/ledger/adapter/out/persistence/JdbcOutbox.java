@@ -76,10 +76,10 @@ class JdbcOutbox implements Outbox, OutboxStore {
     }
 
     @Override
-    public void markPublished(long id, Instant at) {
-        jdbc.sql("update outbox set published_at = :at where id = :id")
+    public void markPublished(List<Long> ids, Instant at) {
+        jdbc.sql("update outbox set published_at = :at where id in (:ids)")
                 .param("at", Timestamp.from(at))
-                .param("id", id)
+                .param("ids", ids)
                 .update();
     }
 

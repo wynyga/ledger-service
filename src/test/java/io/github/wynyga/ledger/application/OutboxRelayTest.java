@@ -38,8 +38,8 @@ class OutboxRelayTest {
         }
 
         @Override
-        public void markPublished(long id, Instant at) {
-            published.add(id);
+        public void markPublished(List<Long> ids, Instant at) {
+            published.addAll(ids);
         }
 
         @Override

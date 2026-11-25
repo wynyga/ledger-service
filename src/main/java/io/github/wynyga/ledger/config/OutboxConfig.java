@@ -38,7 +38,7 @@ class OutboxConfig {
 
     @Bean
     OutboxRelay outboxRelay(OutboxStore store, MessagePublisher publisher, TransactionRunner tx, Clock clock,
-            @Value("${ledger.outbox.relay.batch-size:100}") int batchSize) {
+            @Value("${ledger.outbox.relay.batch-size:500}") int batchSize) {
         return new OutboxRelay(store, publisher, tx, clock, batchSize);
     }
 

@@ -76,18 +76,21 @@ public class OutboxRelay {
 
     private Batch relayBatch() {
         List<OutboxMessage> pending = store.lockPending(batchSize);
-        int published = 0;
-        for (OutboxMessage m : pending) {
-            try {
-                publisher.publish(m);
-            } catch (RuntimeException e) {
-                String error = e.getClass().getSimpleName() + ": " + e.getMessage();
-                store.markFailed(m.id(), error);
-                return new Batch(pending.size(), published, error);
-            }
-            store.markPublished(m.id(), clock.instant());
-            published++;
+        if (pending.isEmpty()) {
+            return new Batch(0, 0, null);
         }
-        return new Batch(pending.size(), published, null);
+        // The whole batch goes out at once (the producer batches it); only the acknowledged prefix is marked.
+        MessagePublisher.Outcome outcome = publisher.publishAll(pending);
+        int acked = outcome.acknowledged();
+        if (acked > 0) {
+            store.markPublished(pending.subList(0, acked).stream().map(OutboxMessage::id).toList(), clock.instant());
+        }
+        if (outcome.failure() != null) {
+            RuntimeException e = outcome.failure();
+            String error = e.getClass().getSimpleName() + ": " + e.getMessage();
+            store.markFailed(pending.get(acked).id(), error);
+            return new Batch(pending.size(), acked, error);
+        }
+        return new Batch(pending.size(), acked, null);
     }
 }

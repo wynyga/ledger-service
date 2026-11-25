@@ -110,16 +110,21 @@ both:
 ```
 transfer transaction                         relay (every 500 ms, separate transaction)
   INSERT transfer, entries                     SELECT ... FROM outbox WHERE published_at IS NULL
-  UPDATE balances                                ORDER BY id LIMIT 100 FOR UPDATE SKIP LOCKED
-  INSERT outbox (TransferPosted)               for each row: send to Kafka, wait for the ack (acks=all)
-COMMIT  -- all or nothing                        ok   -> published_at = now()
-                                                 fail -> attempts + 1, last_error; stop the batch, back off
+  UPDATE balances                                ORDER BY id LIMIT 500 FOR UPDATE SKIP LOCKED
+  INSERT outbox (TransferPosted)               hand the whole batch to the producer, then wait for the
+COMMIT  -- all or nothing                        acks (acks=all) in order
+                                               acknowledged prefix -> one UPDATE ... published_at = now()
+                                               first failure -> attempts + 1, last_error; back off
 ```
 
 - **At least once.** A crash after Kafka acknowledged but before `published_at` committed sends the event again.
   Every message carries an `event-id` header (and `eventId` in the body) so consumers can drop duplicates.
-- **Order.** Rows are relayed in insertion order and a failed row stops the batch, so a later event never overtakes an
-  earlier one. The message key is the transfer id.
+- **Order.** Rows are relayed in insertion order and only an unbroken acknowledged prefix is marked, so a row is never
+  marked published while an earlier one is not. Rows after a failure may already have reached Kafka; they are sent
+  again (at least once). The message key is the transfer id.
+- **Batched.** The first version sent one message and waited for its ack before the next. The load test showed it
+  falling behind at a few hundred transfers per second (28,270 events backlogged after two runs); handing the batch to
+  the producer at once keeps the backlog under 200 at the same load.
 - **Several instances.** `FOR UPDATE SKIP LOCKED` lets every instance run a relay without sending the same row twice
   at the same time.
 - **Broker down.** Transfers keep working; rows pile up in the outbox and the relay retries with exponential backoff
@@ -200,4 +205,8 @@ adapter implements it with `TransactionTemplate`.
 
 ## Later phases
 
-1. **Load test**: k6 script and published numbers (transfers per second, p99 latency, zero reconciliation difference).
+1. **Hot accounts**: split a merchant account that everyone pays into over N sub-accounts (picked by hash), so
+   writers stop queueing on one row lock; the merchant balance is their sum.
+2. **Refresh tokens and revocation**: a long-lived refresh token, and a deny list of `jti` for logout.
+3. **Hold events**: `HoldAuthorized` / `HoldReleased` through the same outbox.
+
