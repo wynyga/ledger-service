@@ -1,13 +1,17 @@
 {
   "info": {
     "name": "Ledger service",
-    "description": "Walks through the ledger: sign up, accounts, a deposit, an idempotent transfer, a hold with partial capture, access rules and reconciliation. Run the folders in order (or the whole collection with the Runner). Tokens and ids are saved into collection variables by the test scripts. Set adminPassword to the ADMIN_PASSWORD the service was started with.",
+    "description": "Walks through the ledger: sign up, accounts, a deposit, an idempotent transfer, a hold with partial capture, access rules and reconciliation. Run the folders in order (or the whole collection with the Runner). Tokens and ids are saved into collection variables by the test scripts. Set adminUsername and adminPassword to ADMIN_USERNAME and ADMIN_PASSWORD from your .env.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
       "value": "http://localhost:8080"
+    },
+    {
+      "key": "adminUsername",
+      "value": "admin"
     },
     {
       "key": "adminPassword",
@@ -237,14 +241,14 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
             },
-            "description": "The admin is created at startup from ADMIN_PASSWORD. Set the collection variable adminPassword to it."
+            "description": "The admin is created at startup from ADMIN_USERNAME / ADMIN_PASSWORD in .env. Set the collection variables adminUsername and adminPassword to the same values."
           },
           "event": [
             {

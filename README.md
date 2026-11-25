@@ -100,7 +100,8 @@ curl -s localhost:8080/api/v1/reconciliation -H "Authorization: Bearer $ADMIN"
 ### With Postman
 
 Import [`postman/ledger-service.postman_collection.json`](postman/ledger-service.postman_collection.json) and set the
-collection variable `adminPassword` to the `ADMIN_PASSWORD` in your `.env` (`baseUrl` defaults to
+collection variables `adminUsername` and `adminPassword` to `ADMIN_USERNAME` and `ADMIN_PASSWORD` from your
+`.env` (`baseUrl` defaults to
 `http://localhost:8080`). Run the whole collection with the Runner, or click through the folders in order: sign up,
 accounts and a deposit, an idempotent transfer and its replay, a hold with partial capture, the access rules, and
 reconciliation. The test scripts save tokens and ids into variables, so nothing needs copying, and every request

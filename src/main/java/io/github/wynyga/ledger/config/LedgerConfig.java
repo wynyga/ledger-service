@@ -14,6 +14,7 @@ import io.github.wynyga.ledger.application.TransactionRunner;
 import io.github.wynyga.ledger.application.TransferService;
 import io.github.wynyga.ledger.application.TransferStore;
 import io.github.wynyga.ledger.application.UserStore;
+import io.github.wynyga.ledger.domain.LedgerException;
 import java.time.Clock;
 import java.time.Duration;
 import org.slf4j.Logger;
@@ -66,8 +67,17 @@ class LedgerConfig {
     ApplicationRunner adminBootstrap(AuthService auth, @Value("${ledger.admin.username:admin}") String username,
             @Value("${ledger.admin.password:}") String password) {
         return args -> {
-            if (!password.isBlank() && auth.ensureAdmin(username, password)) {
-                log.info("created admin user '{}'", username);
+            if (password.isBlank()) {
+                return;
+            }
+            try {
+                if (auth.ensureAdmin(username, password)) {
+                    log.info("created admin user '{}'", username);
+                }
+            } catch (LedgerException e) {
+                // Fail fast, but say which setting is wrong and where it comes from.
+                throw new IllegalStateException("ADMIN_USERNAME / ADMIN_PASSWORD (from .env or the environment) is"
+                        + " not valid: " + e.getMessage(), e);
             }
         };
     }
