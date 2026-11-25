@@ -11,6 +11,8 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -34,25 +36,26 @@ class TransferController {
     }
 
     @PostMapping("/deposits")
-    ResponseEntity<TransferResponse> deposit(@RequestHeader(IDEMPOTENCY_KEY) String key,
-            @Valid @RequestBody DepositRequest req) {
-        return respond(transfers.deposit(key, req.accountId(), req.amount()));
+    ResponseEntity<TransferResponse> deposit(@AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(IDEMPOTENCY_KEY) String key, @Valid @RequestBody DepositRequest req) {
+        return respond(transfers.deposit(Callers.from(jwt), key, req.accountId(), req.amount()));
     }
 
     @PostMapping("/transfers")
-    ResponseEntity<TransferResponse> transfer(@RequestHeader(IDEMPOTENCY_KEY) String key,
-            @Valid @RequestBody TransferRequest req) {
-        return respond(transfers.transfer(key, req.fromAccountId(), req.toAccountId(), req.amount(), req.currency()));
+    ResponseEntity<TransferResponse> transfer(@AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(IDEMPOTENCY_KEY) String key, @Valid @RequestBody TransferRequest req) {
+        return respond(transfers.transfer(Callers.from(jwt), key, req.fromAccountId(), req.toAccountId(),
+                req.amount(), req.currency()));
     }
 
     @GetMapping("/transfers/{id}")
-    TransferResponse get(@PathVariable UUID id) {
-        return TransferResponse.of(transfers.get(id));
+    TransferResponse get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return TransferResponse.of(transfers.get(Callers.from(jwt), id));
     }
 
     @GetMapping("/reconciliation")
-    ReconciliationResponse reconcile() {
-        return ReconciliationResponse.of(reconciliation.run());
+    ReconciliationResponse reconcile(@AuthenticationPrincipal Jwt jwt) {
+        return ReconciliationResponse.of(reconciliation.run(Callers.from(jwt)));
     }
 
     /** 201 the first time; 200 with {@code Idempotent-Replayed: true} when the key was seen before. */

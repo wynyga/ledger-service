@@ -16,7 +16,9 @@ and parallel transfers that never overdraw an account.
    order (by id), so parallel transfers queue instead of racing, and two opposite transfers cannot deadlock.
 5. **Integers for money.** Amounts are `long` minor units (IDR has no fractional unit in practice, so 1 = Rp1). There
    are no floating-point numbers anywhere.
-6. **Clean architecture.** The domain and the use cases are plain Java with no Spring, JPA or servlet imports. A
+6. **Least privilege.** A user moves money only out of accounts they own; deposits and reconciliation need the
+   admin scope. Someone else's account answers "not found", never "forbidden", so ids cannot be probed.
+7. **Clean architecture.** The domain and the use cases are plain Java with no Spring, JPA or servlet imports. A
    build-time test (ArchUnit) enforces this.
 
 ## Model
@@ -75,6 +77,39 @@ Errors are RFC 9457 problem details (`application/problem+json`) with a stable `
 `INSUFFICIENT_FUNDS`, `CURRENCY_MISMATCH`, `SAME_ACCOUNT`, `ACCOUNT_INACTIVE` (422), `IDEMPOTENCY_KEY_REUSED` (409),
 `VALIDATION_FAILED` and `IDEMPOTENCY_KEY_MISSING` (400).
 
+## Security
+
+Stateless bearer tokens, using Spring Security's own OAuth2 resource server support (no extra JWT library).
+
+| Piece | Choice |
+|---|---|
+| Sign up / sign in | `POST /api/v1/auth/register`, `POST /api/v1/auth/token` (JSON username + password) |
+| Passwords | BCrypt through the delegating encoder (`{bcrypt}...`), 10 characters minimum, 72 bytes maximum (the BCrypt input limit) |
+| Token | JWT, HS256, 15 minutes; `sub` = user id, `scope` = `ledger:user` or `ledger:user ledger:admin`, `iss`, `iat`, `exp`, `jti` |
+| Verification | signature, algorithm, expiry (60 s skew) and issuer; failures answer 401 with `WWW-Authenticate: Bearer error="invalid_token"` |
+| Key | `JWT_SECRET`, base64, at least 32 bytes; when unset a random key is generated per start (development only) |
+| First admin | created at startup from `ADMIN_USERNAME` / `ADMIN_PASSWORD` |
+
+Rules, enforced in the use cases (the URL rules in the filter chain are a second lock, not the only one):
+
+| Action | Who |
+|---|---|
+| open an account | any user; it belongs to them |
+| read an account or statement | its owner, or an admin |
+| transfer | the owner of the source account; any existing account may receive |
+| read a transfer | the owners of either side, or an admin |
+| deposit, reconciliation, actuator (except health) | admin |
+
+An admin cannot move money out of a customer account. Login gives the same answer, after the same amount of work,
+for an unknown user and a wrong password. Idempotency keys are unique **per requester** (`unique nulls not distinct
+(requested_by, idempotency_key)`), so one user's key can never replay, block or reveal another user's transfer.
+
+CSRF protection is off on purpose: no cookie or session authenticates a request, so a cross-site form has no
+credential to ride on. Sessions are `STATELESS`.
+
+Not done yet: refresh tokens, revocation (a deny list of `jti`), rate limiting of the token endpoint, and moving to
+RS256 with a JWKS endpoint when a second service has to verify tokens.
+
 ## Layout
 
 ```
@@ -83,6 +118,7 @@ io.github.wynyga.ledger
   application/   use cases (OpenAccount, PostTransfer, GetStatement, Reconcile) and ports
   adapter/in/web/        controllers, request/response records, problem-detail handler
   adapter/out/persistence/  JPA entities, Spring Data repositories, port implementations
+  adapter/out/security/  BCrypt hashing, JWT signing
   config/        wiring of use cases to adapters (composition root)
 ```
 
@@ -97,12 +133,13 @@ adapter implements it with `TransactionTemplate`.
   - an account holding 100 receives 50 parallel transfers of 10 out: exactly 10 succeed, the balance ends at 0;
   - 400 random transfers in both directions between a few accounts on 16 threads: no deadlock error, no negative
     balance, reconciliation is clean and the total is unchanged.
+- **Security tests**: missing, malformed, tampered, expired and foreign-issuer tokens; ownership of accounts and
+  transfers; admin-only deposits and reconciliation; per-user idempotency keys; registration and login rules.
 - **Architecture test** (ArchUnit): `domain` and `application` do not depend on Spring, Jakarta or the adapters.
 
 ## Later phases
 
-1. **Security**: Spring Security with JWT; an account belongs to a user and only its owner can move money out.
-2. **Outbox**: an `outbox` row written in the same transaction as the transfer, relayed to Kafka by a scheduled
+1. **Outbox**: an `outbox` row written in the same transaction as the transfer, relayed to Kafka by a scheduled
    publisher, so a `TransferPosted` event is never lost and never sent for a rolled-back transfer.
-3. **Load test**: k6 script and published numbers (transfers per second, p99 latency, zero reconciliation difference).
-4. **Holds**: authorise-then-capture (reserve funds, then settle or release), as card payments do.
+2. **Load test**: k6 script and published numbers (transfers per second, p99 latency, zero reconciliation difference).
+3. **Holds**: authorise-then-capture (reserve funds, then settle or release), as card payments do.

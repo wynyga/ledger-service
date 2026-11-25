@@ -9,12 +9,13 @@ public interface TransferStore {
 
     Optional<Transfer> find(UUID id);
 
-    Optional<Transfer> findByIdempotencyKey(String key);
+    /** Keys are unique per requester. */
+    Optional<Transfer> findByIdempotencyKey(UUID requestedBy, String key);
 
     /**
      * Stores the transfer and its entries.
      *
-     * @throws IdempotencyKeyTakenException when another transfer already holds the idempotency key
+     * @throws IdempotencyKeyTakenException when the requester already has a transfer with this key
      */
     void insert(Transfer transfer);
 }

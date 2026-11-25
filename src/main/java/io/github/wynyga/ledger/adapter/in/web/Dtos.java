@@ -26,9 +26,10 @@ final class Dtos {
             @NotBlank String currency) {
     }
 
-    record AccountResponse(UUID id, String currency, long balance, String status, Instant createdAt) {
+    record AccountResponse(UUID id, UUID ownerId, String currency, long balance, String status, Instant createdAt) {
         static AccountResponse of(Account a) {
-            return new AccountResponse(a.id(), a.currency(), a.balance(), a.status().name(), a.createdAt());
+            return new AccountResponse(a.id(), a.ownerId(), a.currency(), a.balance(), a.status().name(),
+                    a.createdAt());
         }
     }
 

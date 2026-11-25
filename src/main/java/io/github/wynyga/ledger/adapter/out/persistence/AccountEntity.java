@@ -17,6 +17,9 @@ public class AccountEntity {
     @Id
     private UUID id;
 
+    @Column(name = "owner_id")
+    private UUID ownerId;
+
     @Column(nullable = false, length = 3)
     private String currency;
 
@@ -42,6 +45,7 @@ public class AccountEntity {
     static AccountEntity from(Account a) {
         AccountEntity e = new AccountEntity();
         e.id = a.id();
+        e.ownerId = a.ownerId();
         e.currency = a.currency();
         e.balance = a.balance();
         e.allowNegative = a.allowNegative();
@@ -51,7 +55,7 @@ public class AccountEntity {
     }
 
     Account toDomain() {
-        return new Account(id, currency, balance, allowNegative, status, createdAt);
+        return new Account(id, ownerId, currency, balance, allowNegative, status, createdAt);
     }
 
     void setBalance(long balance) {

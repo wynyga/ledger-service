@@ -21,22 +21,28 @@ public class AccountService {
         this.clock = clock;
     }
 
-    public Account open(String currency) {
+    /** The account belongs to the caller. */
+    public Account open(Caller caller, String currency) {
         String c = Currencies.normalize(currency);
         if (accounts.fundingAccountId(c).isEmpty()) {
             throw new LedgerException(ErrorCode.CURRENCY_NOT_SUPPORTED, "currency " + c + " is not supported");
         }
-        Account account = Account.open(UUID.randomUUID(), c, clock.instant());
+        Account account = Account.open(UUID.randomUUID(), caller.userId(), c, clock.instant());
         accounts.insert(account);
         return account;
     }
 
-    public Account get(UUID id) {
-        return accounts.find(id).orElseThrow(() -> notFound(id));
+    /** Owners see their accounts; admins see all. Anyone else gets "not found", never "forbidden". */
+    public Account get(Caller caller, UUID id) {
+        Account a = accounts.find(id).orElseThrow(() -> notFound(id));
+        if (!caller.admin() && !a.isOwnedBy(caller.userId())) {
+            throw notFound(id);
+        }
+        return a;
     }
 
-    public List<Entry> statement(UUID id, int limit) {
-        get(id);
+    public List<Entry> statement(Caller caller, UUID id, int limit) {
+        get(caller, id);
         return accounts.statement(id, Math.clamp(limit, 1, MAX_STATEMENT));
     }
 

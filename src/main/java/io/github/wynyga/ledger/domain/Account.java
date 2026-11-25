@@ -10,15 +10,18 @@ import java.util.UUID;
  */
 public final class Account {
     private final UUID id;
+    private final UUID ownerId;
     private final String currency;
     private long balance;
     private final boolean allowNegative;
     private final AccountStatus status;
     private final Instant createdAt;
 
-    public Account(UUID id, String currency, long balance, boolean allowNegative, AccountStatus status,
+    /** @param ownerId the user who owns the account; null for system accounts */
+    public Account(UUID id, UUID ownerId, String currency, long balance, boolean allowNegative, AccountStatus status,
             Instant createdAt) {
         this.id = Objects.requireNonNull(id);
+        this.ownerId = ownerId;
         this.currency = Currencies.normalize(currency);
         this.balance = balance;
         this.allowNegative = allowNegative;
@@ -27,8 +30,12 @@ public final class Account {
     }
 
     /** A new customer account: empty, active, never allowed below zero. */
-    public static Account open(UUID id, String currency, Instant now) {
-        return new Account(id, currency, 0, false, AccountStatus.ACTIVE, now);
+    public static Account open(UUID id, UUID ownerId, String currency, Instant now) {
+        return new Account(id, Objects.requireNonNull(ownerId), currency, 0, false, AccountStatus.ACTIVE, now);
+    }
+
+    public boolean isOwnedBy(UUID userId) {
+        return ownerId != null && ownerId.equals(userId);
     }
 
     long balanceAfterDebit(long amount) {
@@ -66,6 +73,10 @@ public final class Account {
 
     public UUID id() {
         return id;
+    }
+
+    public UUID ownerId() {
+        return ownerId;
     }
 
     public String currency() {

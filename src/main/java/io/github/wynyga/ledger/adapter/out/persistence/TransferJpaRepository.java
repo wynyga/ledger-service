@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 interface TransferJpaRepository extends JpaRepository<TransferEntity, UUID> {
 
-    Optional<TransferEntity> findByIdempotencyKey(String idempotencyKey);
+    Optional<TransferEntity> findByRequestedByAndIdempotencyKey(UUID requestedBy, String idempotencyKey);
 }

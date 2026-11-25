@@ -8,12 +8,11 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
 import java.util.Optional;
 import java.util.UUID;
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.stereotype.Component;
 
 @Component
 class JpaTransferStore implements TransferStore {
-    static final String KEY_CONSTRAINT = "uq_transfers_idempotency_key";
+    static final String KEY_CONSTRAINT = "uq_transfers_requester_key";
 
     private final TransferJpaRepository transfers;
     private final EntryJpaRepository entries;
@@ -31,8 +30,8 @@ class JpaTransferStore implements TransferStore {
     }
 
     @Override
-    public Optional<Transfer> findByIdempotencyKey(String key) {
-        return transfers.findByIdempotencyKey(key).map(this::withEntries);
+    public Optional<Transfer> findByIdempotencyKey(UUID requestedBy, String key) {
+        return transfers.findByRequestedByAndIdempotencyKey(requestedBy, key).map(this::withEntries);
     }
 
     @Override
@@ -42,7 +41,7 @@ class JpaTransferStore implements TransferStore {
             // Flush now so a duplicate key surfaces here, as a typed exception, and not at commit.
             em.flush();
         } catch (PersistenceException e) {
-            if (isKeyViolation(e)) {
+            if (Constraints.violates(e, KEY_CONSTRAINT)) {
                 throw new IdempotencyKeyTakenException(transfer.idempotencyKey(), e);
             }
             throw e;
@@ -54,14 +53,5 @@ class JpaTransferStore implements TransferStore {
 
     private Transfer withEntries(TransferEntity t) {
         return t.toDomain(entries.findByTransferIdOrderByIdAsc(t.id()).stream().map(EntryEntity::toDomain).toList());
-    }
-
-    private static boolean isKeyViolation(Throwable e) {
-        for (Throwable c = e; c != null; c = c.getCause()) {
-            if (c instanceof ConstraintViolationException cv && KEY_CONSTRAINT.equals(cv.getConstraintName())) {
-                return true;
-            }
-        }
-        return false;
     }
 }

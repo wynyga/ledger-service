@@ -19,7 +19,10 @@ public class TransferEntity {
     @Id
     private UUID id;
 
-    @Column(name = "idempotency_key", nullable = false, length = 100, unique = true)
+    @Column(name = "requested_by")
+    private UUID requestedBy;
+
+    @Column(name = "idempotency_key", nullable = false, length = 100)
     private String idempotencyKey;
 
     @Column(name = "request_hash", nullable = false, length = 64)
@@ -50,6 +53,7 @@ public class TransferEntity {
     static TransferEntity from(Transfer t) {
         TransferEntity e = new TransferEntity();
         e.id = t.id();
+        e.requestedBy = t.requestedBy();
         e.idempotencyKey = t.idempotencyKey();
         e.requestHash = t.requestHash();
         e.type = t.type();
@@ -62,8 +66,8 @@ public class TransferEntity {
     }
 
     Transfer toDomain(List<Entry> entries) {
-        return new Transfer(id, idempotencyKey, requestHash, type, debitAccountId, creditAccountId, amount, currency,
-                createdAt, entries);
+        return new Transfer(id, requestedBy, idempotencyKey, requestHash, type, debitAccountId, creditAccountId,
+                amount, currency, createdAt, entries);
     }
 
     UUID id() {

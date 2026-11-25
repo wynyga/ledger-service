@@ -10,6 +10,8 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,18 +30,19 @@ class AccountController {
     }
 
     @PostMapping
-    ResponseEntity<AccountResponse> open(@Valid @RequestBody OpenAccountRequest req) {
-        Account a = accounts.open(req.currency());
+    ResponseEntity<AccountResponse> open(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody OpenAccountRequest req) {
+        Account a = accounts.open(Callers.from(jwt), req.currency());
         return ResponseEntity.created(URI.create("/api/v1/accounts/" + a.id())).body(AccountResponse.of(a));
     }
 
     @GetMapping("/{id}")
-    AccountResponse get(@PathVariable UUID id) {
-        return AccountResponse.of(accounts.get(id));
+    AccountResponse get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        return AccountResponse.of(accounts.get(Callers.from(jwt), id));
     }
 
     @GetMapping("/{id}/entries")
-    List<EntryResponse> entries(@PathVariable UUID id, @RequestParam(defaultValue = "50") int limit) {
-        return accounts.statement(id, limit).stream().map(EntryResponse::of).toList();
+    List<EntryResponse> entries(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+            @RequestParam(defaultValue = "50") int limit) {
+        return accounts.statement(Callers.from(jwt), id, limit).stream().map(EntryResponse::of).toList();
     }
 }

@@ -27,8 +27,8 @@ public final class Ledger {
      * Applies the command to the two accounts and returns the transfer with its two entries. Either both balances
      * change or neither does.
      */
-    public static Transfer post(TransferCommand cmd, String idempotencyKey, Account debit, Account credit,
-            UUID transferId, Instant now) {
+    public static Transfer post(TransferCommand cmd, UUID requestedBy, String idempotencyKey, Account debit,
+            Account credit, UUID transferId, Instant now) {
         if (!debit.id().equals(cmd.debitAccountId()) || !credit.id().equals(cmd.creditAccountId())) {
             throw new IllegalArgumentException("accounts do not match the command");
         }
@@ -44,7 +44,7 @@ public final class Ledger {
         List<Entry> entries = List.of(
                 new Entry(transferId, debit.id(), Direction.DEBIT, cmd.amount(), debitAfter, now),
                 new Entry(transferId, credit.id(), Direction.CREDIT, cmd.amount(), creditAfter, now));
-        return new Transfer(transferId, validKey(idempotencyKey), cmd.hash(), cmd.type(), debit.id(), credit.id(),
-                cmd.amount(), cmd.currency(), now, entries);
+        return new Transfer(transferId, requestedBy, validKey(idempotencyKey), cmd.hash(), cmd.type(), debit.id(),
+                credit.id(), cmd.amount(), cmd.currency(), now, entries);
     }
 }
