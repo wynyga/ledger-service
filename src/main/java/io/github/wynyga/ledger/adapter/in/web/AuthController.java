@@ -3,6 +3,7 @@ package io.github.wynyga.ledger.adapter.in.web;
 import io.github.wynyga.ledger.application.AuthService;
 import io.github.wynyga.ledger.application.TokenIssuer.AccessToken;
 import io.github.wynyga.ledger.domain.User;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Tag(name = "Auth", description = "Register, sign in, and inspect the current token")
 @RequestMapping("/api/v1/auth")
 class AuthController {
 

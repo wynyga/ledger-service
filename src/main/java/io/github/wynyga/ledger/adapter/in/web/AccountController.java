@@ -5,6 +5,7 @@ import io.github.wynyga.ledger.adapter.in.web.Dtos.EntryResponse;
 import io.github.wynyga.ledger.adapter.in.web.Dtos.OpenAccountRequest;
 import io.github.wynyga.ledger.application.AccountService;
 import io.github.wynyga.ledger.domain.Account;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Tag(name = "Accounts", description = "Open accounts, read balances and statements")
 @RequestMapping("/api/v1/accounts")
 class AccountController {
     private final AccountService accounts;

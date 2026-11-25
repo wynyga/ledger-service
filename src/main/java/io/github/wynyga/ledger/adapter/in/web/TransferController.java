@@ -7,6 +7,7 @@ import io.github.wynyga.ledger.adapter.in.web.Dtos.TransferResponse;
 import io.github.wynyga.ledger.application.ReconciliationService;
 import io.github.wynyga.ledger.application.TransferService;
 import io.github.wynyga.ledger.application.TransferService.PostResult;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.UUID;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Tag(name = "Transfers", description = "Deposits (admin), transfers, reconciliation (admin)")
 @RequestMapping("/api/v1")
 class TransferController {
     static final String IDEMPOTENCY_KEY = "Idempotency-Key";

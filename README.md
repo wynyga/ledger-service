@@ -45,24 +45,32 @@ if the web and persistence adapters depend on each other.
 
 Needs JDK 21 or newer and Docker. Maven comes with the wrapper.
 
-```bash
-docker compose up -d                       # PostgreSQL on :5440, Kafka (KRaft) on :9094
-export JWT_SECRET=$(openssl rand -base64 32)
-export ADMIN_PASSWORD='choose-a-long-one'  # creates the user "admin" at startup
-./mvnw spring-boot:run                     # http://localhost:8080
-```
+**1. Settings.** Copy `.env.example` to `.env` and fill in `JWT_SECRET` (`openssl rand -base64 32`) and
+`ADMIN_PASSWORD`. `.env` is git-ignored. Both `docker compose` and the app itself read it, so there is nothing to
+export.
 
-On Windows PowerShell: `$env:ADMIN_PASSWORD = "choose-a-long-one"` and `.\mvnw.cmd spring-boot:run`. Without
-`JWT_SECRET` a random key is used and tokens stop working when the app restarts.
-
-Or without compose, with a throwaway PostgreSQL and Kafka started by Testcontainers: `./mvnw spring-boot:test-run`.
-
-Or everything in Docker, the service included (this is how the load test runs):
+**2a. Everything in Docker**, the service included:
 
 ```bash
 ./mvnw -DskipTests package
-JWT_SECRET=$(openssl rand -base64 32) ADMIN_PASSWORD='choose-a-long-one' docker compose --profile app up -d --build
+docker compose --profile app up -d --build      # http://localhost:8080
 ```
+
+**2b. Or the service from your IDE / terminal**, with PostgreSQL and Kafka in Docker:
+
+```bash
+docker compose up -d                            # PostgreSQL on :5440, Kafka (KRaft) on :9094
+./mvnw spring-boot:run                          # http://localhost:8080   (Windows: .\mvnw.cmd spring-boot:run)
+```
+
+Or with a throwaway PostgreSQL and Kafka started by Testcontainers: `./mvnw spring-boot:test-run`.
+
+Without `JWT_SECRET` a random key is used and tokens stop working when the app restarts; without `ADMIN_PASSWORD` no
+admin exists, so nobody can record deposits.
+
+**Swagger UI:** http://localhost:8080/swagger-ui.html. Call `POST /api/v1/auth/token`, click **Authorize**, paste the
+`accessToken`, and every endpoint can be tried from the browser. The raw OpenAPI document is at `/v3/api-docs`. Turn
+both off in production with `SWAGGER_ENABLED=false`.
 
 ## Try it
 
@@ -92,7 +100,7 @@ curl -s localhost:8080/api/v1/reconciliation -H "Authorization: Bearer $ADMIN"
 ### With Postman
 
 Import [`postman/ledger-service.postman_collection.json`](postman/ledger-service.postman_collection.json) and set the
-collection variable `adminPassword` to the `ADMIN_PASSWORD` the service runs with (`baseUrl` defaults to
+collection variable `adminPassword` to the `ADMIN_PASSWORD` in your `.env` (`baseUrl` defaults to
 `http://localhost:8080`). Run the whole collection with the Runner, or click through the folders in order: sign up,
 accounts and a deposit, an idempotent transfer and its replay, a hold with partial capture, the access rules, and
 reconciliation. The test scripts save tokens and ids into variables, so nothing needs copying, and every request
@@ -125,6 +133,7 @@ deposits come from.
 | POST | `/api/v1/deposits` | admin | money in (needs `Idempotency-Key`) |
 | GET | `/api/v1/reconciliation` | admin | check the books |
 | GET | `/actuator/health` | anyone | liveness |
+| GET | `/swagger-ui.html`, `/v3/api-docs` | anyone (unless `SWAGGER_ENABLED=false`) | API docs |
 | GET | `/actuator/prometheus` | admin | metrics, including `ledger_outbox_pending` |
 
 Errors are `application/problem+json` with a stable `code`, for example `INSUFFICIENT_FUNDS` (422),
@@ -171,7 +180,7 @@ summing to 0) and the outbox backlog never went above 192 events; commit-to-Kafk
 830 ms at p99.
 
 ```bash
-docker compose --profile app up -d --build          # with ADMIN_PASSWORD set, see Run
+docker compose --profile app up -d --build          # with .env filled in, see Run
 docker run --rm --network ledger-service_default -v "$PWD/loadtest:/scripts" \
   -e BASE_URL=http://app:8080 -e ADMIN_PASSWORD='choose-a-long-one' grafana/k6 run /scripts/ledger.js
 ```

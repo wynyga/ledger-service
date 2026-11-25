@@ -3,6 +3,7 @@ package io.github.wynyga.ledger.adapter.in.web;
 import io.github.wynyga.ledger.application.HoldService;
 import io.github.wynyga.ledger.application.HoldService.HoldResult;
 import io.github.wynyga.ledger.domain.Hold;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Tag(name = "Holds", description = "Reserve money, then capture all or part of it, or release it")
 @RequestMapping("/api/v1/holds")
 class HoldController {
 

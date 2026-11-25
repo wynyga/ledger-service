@@ -42,6 +42,9 @@ class SecurityConfig {
                 .authorizeHttpRequests(a -> a
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/token").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/error").permitAll()
+                        // API docs; turn them off in production with SWAGGER_ENABLED=false.
+                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**")
+                        .permitAll()
                         // Checked again in the use cases; this is the first of two locks.
                         .requestMatchers(HttpMethod.POST, "/api/v1/deposits").hasAuthority(ADMIN)
                         .requestMatchers("/api/v1/reconciliation", "/actuator/**").hasAuthority(ADMIN)

@@ -41,8 +41,11 @@ services:
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/ledger
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      # From .env (see .env.example); compose reads it automatically.
       JWT_SECRET: ${JWT_SECRET:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      SWAGGER_ENABLED: ${SWAGGER_ENABLED:-true}
     ports:
       - "8080:8080"
     depends_on:

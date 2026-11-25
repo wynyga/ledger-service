@@ -34,3 +34,6 @@ build/
 
 ### load test output ###
 loadtest/last-summary.json
+
+### local settings and secrets ###
+.env
