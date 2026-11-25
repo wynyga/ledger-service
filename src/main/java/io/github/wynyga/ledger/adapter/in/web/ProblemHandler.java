@@ -52,13 +52,14 @@ class ProblemHandler {
 
     static HttpStatus status(ErrorCode code) {
         return switch (code) {
-            case ACCOUNT_NOT_FOUND, TRANSFER_NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case IDEMPOTENCY_KEY_REUSED, USERNAME_TAKEN -> HttpStatus.CONFLICT;
+            case ACCOUNT_NOT_FOUND, TRANSFER_NOT_FOUND, HOLD_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case IDEMPOTENCY_KEY_REUSED, USERNAME_TAKEN, HOLD_NOT_ACTIVE, HOLD_EXPIRED -> HttpStatus.CONFLICT;
             case IDEMPOTENCY_KEY_INVALID, USERNAME_INVALID, PASSWORD_INVALID -> HttpStatus.BAD_REQUEST;
             case INVALID_CREDENTIALS -> HttpStatus.UNAUTHORIZED;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case ACCOUNT_INACTIVE, INSUFFICIENT_FUNDS, CURRENCY_MISMATCH, CURRENCY_NOT_SUPPORTED, SAME_ACCOUNT,
-                    INVALID_AMOUNT, BALANCE_OVERFLOW -> HttpStatus.UNPROCESSABLE_CONTENT;
+                    INVALID_AMOUNT, BALANCE_OVERFLOW, HOLD_EXPIRY_INVALID, CAPTURE_EXCEEDS_HOLD ->
+                    HttpStatus.UNPROCESSABLE_CONTENT;
         };
     }
 

@@ -16,7 +16,7 @@ public interface AccountStore {
     /** Loads the account and locks it until the surrounding transaction ends. Only call inside a transaction. */
     Optional<Account> lock(UUID id);
 
-    /** Writes the account's balance. Only call inside the transaction that locked it. */
+    /** Writes the account's balance and held amount. Only call inside the transaction that locked it. */
     void saveBalance(Account account);
 
     /** The system account that money enters from, or empty when the currency is not supported. */

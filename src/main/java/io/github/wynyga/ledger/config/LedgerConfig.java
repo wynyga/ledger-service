@@ -3,6 +3,8 @@ package io.github.wynyga.ledger.config;
 import io.github.wynyga.ledger.application.AccountService;
 import io.github.wynyga.ledger.application.AccountStore;
 import io.github.wynyga.ledger.application.AuthService;
+import io.github.wynyga.ledger.application.HoldService;
+import io.github.wynyga.ledger.application.HoldStore;
 import io.github.wynyga.ledger.application.Outbox;
 import io.github.wynyga.ledger.application.PasswordHasher;
 import io.github.wynyga.ledger.application.ReconciliationQuery;
@@ -41,6 +43,12 @@ class LedgerConfig {
     TransferService transferService(AccountStore accounts, TransferStore transfers, Outbox outbox,
             TransactionRunner tx, Clock clock) {
         return new TransferService(accounts, transfers, outbox, tx, clock);
+    }
+
+    @Bean
+    HoldService holdService(AccountStore accounts, HoldStore holds, TransferStore transfers, Outbox outbox,
+            TransactionRunner tx, Clock clock) {
+        return new HoldService(accounts, holds, transfers, outbox, tx, clock);
     }
 
     @Bean

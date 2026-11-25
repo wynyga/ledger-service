@@ -77,14 +77,10 @@ public class TransferService {
     }
 
     private Transfer postLocked(Caller caller, String key, TransferCommand cmd) {
-        // Lock in a fixed order so that A->B and B->A running together queue instead of deadlocking.
-        UUID first = cmd.debitAccountId().compareTo(cmd.creditAccountId()) < 0
-                ? cmd.debitAccountId() : cmd.creditAccountId();
-        UUID second = first.equals(cmd.debitAccountId()) ? cmd.creditAccountId() : cmd.debitAccountId();
-        Account a = accounts.lock(first).orElseThrow(() -> AccountService.notFound(first));
-        Account b = accounts.lock(second).orElseThrow(() -> AccountService.notFound(second));
-        Account debit = a.id().equals(cmd.debitAccountId()) ? a : b;
-        Account credit = debit == a ? b : a;
+        // Fixed lock order, so A->B and B->A running together queue instead of deadlocking.
+        AccountLocks.Pair locked = AccountLocks.lock(accounts, cmd.debitAccountId(), cmd.creditAccountId());
+        Account debit = locked.get(cmd.debitAccountId());
+        Account credit = locked.get(cmd.creditAccountId());
 
         // Deposits debit the system funding account, which nobody owns; everything else needs the owner.
         if (cmd.type() == TransferType.TRANSFER && !debit.isOwnedBy(caller.userId())) {

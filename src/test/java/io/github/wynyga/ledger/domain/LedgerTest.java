@@ -12,7 +12,7 @@ class LedgerTest {
     static final UUID OWNER = UUID.randomUUID();
 
     static Account account(long balance) {
-        return new Account(UUID.randomUUID(), OWNER, "IDR", balance, false, AccountStatus.ACTIVE, NOW);
+        return new Account(UUID.randomUUID(), OWNER, "IDR", balance, 0, false, AccountStatus.ACTIVE, NOW);
     }
 
     static TransferCommand cmd(Account from, Account to, long amount) {
@@ -50,7 +50,7 @@ class LedgerTest {
 
     @Test
     void fundingAccountMayGoNegative() {
-        Account funding = new Account(UUID.randomUUID(), null, "IDR", 0, true, AccountStatus.ACTIVE, NOW);
+        Account funding = new Account(UUID.randomUUID(), null, "IDR", 0, 0, true, AccountStatus.ACTIVE, NOW);
         Account b = account(0);
 
         Ledger.post(new TransferCommand(TransferType.DEPOSIT, funding.id(), b.id(), 500, "IDR"), OWNER, "d", funding, b,
@@ -73,7 +73,7 @@ class LedgerTest {
     @Test
     void refusesCurrencyMismatch() {
         Account a = account(1_000);
-        Account usd = new Account(UUID.randomUUID(), OWNER, "USD", 0, false, AccountStatus.ACTIVE, NOW);
+        Account usd = new Account(UUID.randomUUID(), OWNER, "USD", 0, 0, false, AccountStatus.ACTIVE, NOW);
 
         assertThatThrownBy(() -> Ledger.post(cmd(a, usd, 10), OWNER, "k", a, usd, UUID.randomUUID(), NOW))
                 .extracting(e -> ((LedgerException) e).code()).isEqualTo(ErrorCode.CURRENCY_MISMATCH);
@@ -82,7 +82,7 @@ class LedgerTest {
     @Test
     void refusesFrozenAccounts() {
         Account a = account(1_000);
-        Account frozen = new Account(UUID.randomUUID(), OWNER, "IDR", 0, false, AccountStatus.FROZEN, NOW);
+        Account frozen = new Account(UUID.randomUUID(), OWNER, "IDR", 0, 0, false, AccountStatus.FROZEN, NOW);
 
         assertThatThrownBy(() -> Ledger.post(cmd(a, frozen, 10), OWNER, "k", a, frozen, UUID.randomUUID(), NOW))
                 .extracting(e -> ((LedgerException) e).code()).isEqualTo(ErrorCode.ACCOUNT_INACTIVE);

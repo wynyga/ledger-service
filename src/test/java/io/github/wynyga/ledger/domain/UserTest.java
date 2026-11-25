@@ -35,7 +35,7 @@ class UserTest {
     void onlyTheOwnerOwnsAnAccount() {
         UUID me = UUID.randomUUID();
         Account mine = Account.open(UUID.randomUUID(), me, "IDR", LedgerTest.NOW);
-        Account system = new Account(UUID.randomUUID(), null, "IDR", 0, true, AccountStatus.ACTIVE, LedgerTest.NOW);
+        Account system = new Account(UUID.randomUUID(), null, "IDR", 0, 0, true, AccountStatus.ACTIVE, LedgerTest.NOW);
 
         assertThat(mine.isOwnedBy(me)).isTrue();
         assertThat(mine.isOwnedBy(UUID.randomUUID())).isFalse();

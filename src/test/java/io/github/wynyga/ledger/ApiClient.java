@@ -84,7 +84,10 @@ final class ApiClient {
     }
 
     Res post(String path, String token, String key, Object body) {
-        var spec = http.post().uri(path).contentType(MediaType.APPLICATION_JSON).body(body);
+        var spec = http.post().uri(path);
+        if (body != null) {
+            spec = spec.contentType(MediaType.APPLICATION_JSON).body(body);
+        }
         if (token != null) {
             spec = spec.header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.wynyga.ledger.application.AccountService;
 import io.github.wynyga.ledger.application.AuthService;
 import io.github.wynyga.ledger.application.Caller;
+import io.github.wynyga.ledger.application.HoldService;
 import io.github.wynyga.ledger.application.UserStore;
 import io.github.wynyga.ledger.application.ReconciliationService;
 import io.github.wynyga.ledger.application.TransferService;
@@ -44,6 +45,67 @@ class ConcurrencyTests extends IntegrationTest {
     AuthService auth;
     @Autowired
     UserStore users;
+    @Autowired
+    HoldService holds;
+
+    @Test
+    void holdsTransfersCapturesAndReleasesRacingNeverOverspend() throws Exception {
+        Caller alice = newUser();
+        Caller shop = newUser();
+        UUID wallet = funded(alice, 1_000);
+        UUID till = accounts.open(shop, "IDR").id();
+        Queue<UUID> authorized = new ConcurrentLinkedQueue<>();
+        Queue<Throwable> unexpected = new ConcurrentLinkedQueue<>();
+
+        // 60 operations of 100 against 1,000: half reserve, half spend directly. At most 10 can win.
+        runAll(60, i -> () -> {
+            try {
+                if (i % 2 == 0) {
+                    authorized.add(holds.authorize(alice, key(), wallet, till, 100, "IDR", null).hold().id());
+                } else {
+                    transfers.transfer(alice, key(), wallet, till, 100, "IDR");
+                }
+            } catch (LedgerException e) {
+                if (e.code() != ErrorCode.INSUFFICIENT_FUNDS) {
+                    unexpected.add(e);
+                }
+            } catch (RuntimeException e) {
+                unexpected.add(e);
+            }
+            return null;
+        });
+        assertThat(unexpected).isEmpty();
+        Account mid = accounts.get(admin(), wallet);
+        assertThat(mid.available()).isZero();
+        assertThat(mid.held()).isEqualTo(100L * authorized.size());
+
+        // Now settle every hold twice at once: once by capture, once by release. Exactly one of each pair wins.
+        List<UUID> ids = List.copyOf(authorized);
+        runAll(ids.size() * 2, i -> () -> {
+            UUID id = ids.get(i / 2);
+            try {
+                if (i % 2 == 0) {
+                    holds.capture(shop, id, 60L);
+                } else {
+                    holds.release(alice, id);
+                }
+            } catch (LedgerException e) {
+                if (e.code() != ErrorCode.HOLD_NOT_ACTIVE) {
+                    unexpected.add(e);
+                }
+            } catch (RuntimeException e) {
+                unexpected.add(e);
+            }
+            return null;
+        });
+
+        assertThat(unexpected).isEmpty();
+        Account after = accounts.get(admin(), wallet);
+        assertThat(after.held()).isZero();
+        assertThat(after.balance() + accounts.get(admin(), till).balance()).isEqualTo(1_000);
+        assertThat(after.balance()).isNotNegative();
+        assertThat(reconciliation.run(admin()).clean()).isTrue();
+    }
 
     @Test
     void parallelWithdrawalsNeverOverdraw() throws Exception {

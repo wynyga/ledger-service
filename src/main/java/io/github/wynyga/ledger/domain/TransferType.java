@@ -4,5 +4,7 @@ public enum TransferType {
     /** Between two customer accounts. */
     TRANSFER,
     /** From the system funding account into a customer account: money entering the ledger. */
-    DEPOSIT
+    DEPOSIT,
+    /** Settles a hold: moves the captured part of the reserved money to the hold's receiver. */
+    CAPTURE
 }

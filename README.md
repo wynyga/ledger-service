@@ -15,6 +15,9 @@ It focuses on the parts of moving money that are easy to get wrong:
   parallel transfers queue instead of racing, and opposite transfers (A→B and B→A) cannot deadlock.
 - **Only the owner spends.** JWT bearer tokens (Spring Security resource server, HS256). A user moves money only out
   of their own accounts; deposits and reconciliation need the admin scope. Other people's accounts answer `404`.
+- **Reserve now, settle later.** Holds work like card payments: the payer authorises, the money is reserved
+  (`available = balance - held`), and the receiver captures all or part of it; either side can release, and unclaimed
+  holds expire.
 - **Events are never lost or invented.** Every transfer writes a `TransferPosted` event to an outbox table in the
   same transaction; a relay sends it to Kafka (`ledger.transfers`) and marks it only after the broker acknowledged
   it. If Kafka is down, transfers keep working and the events follow, in order, when it is back.
@@ -92,6 +95,10 @@ deposits come from.
 | GET | `/api/v1/accounts/{id}/entries?limit=50` | owner, admin | statement, newest first |
 | POST | `/api/v1/transfers` | owner of the source | move money (needs `Idempotency-Key`) |
 | GET | `/api/v1/transfers/{id}` | either side, admin | one transfer with its entries |
+| POST | `/api/v1/holds` | owner of the source | reserve money (needs `Idempotency-Key`) |
+| GET | `/api/v1/holds/{id}` | either side, admin | one hold |
+| POST | `/api/v1/holds/{id}/capture` | owner of the receiver | settle all or part (`{"amount": ...}` optional) |
+| POST | `/api/v1/holds/{id}/release` | either side | cancel the reservation |
 | POST | `/api/v1/deposits` | admin | money in (needs `Idempotency-Key`) |
 | GET | `/api/v1/reconciliation` | admin | check the books |
 | GET | `/actuator/health` | anyone | liveness |
@@ -113,6 +120,7 @@ Integration tests run against a real PostgreSQL 17 in Docker (Testcontainers). B
 | 50 parallel withdrawals of 10 from an account holding 100 | exactly 10 succeed, the balance ends at 0 |
 | 20 parallel requests with the same Idempotency-Key | one transfer, 19 replays, money moves once |
 | 400 random transfers in both directions on 16 threads | no deadlock, no negative balance, total unchanged, reconciliation clean |
+| 30 holds and 30 transfers of 100 racing on an account holding 1,000, then a capture and a release racing for each hold | never more than 1,000 used, one settlement per hold, nothing left held, reconciliation clean |
 
 Integration tests run on a real Kafka broker too. `OutboxTests` checks that a transfer arrives on the topic with
 its `event-id` header and is marked published, and that a refused transfer leaves no event. `OutboxRelayTest` checks
@@ -139,5 +147,5 @@ consumers deduplicate on `eventId`.
 
 ## Next
 
-Refresh tokens and revocation, a k6 load test with published
-numbers, and authorise/capture holds. See the last section of the design.
+Refresh tokens and revocation, and a k6 load test with published
+numbers. See the last section of the design.

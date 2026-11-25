@@ -41,6 +41,13 @@ class JdbcReconciliationQuery implements ReconciliationQuery {
                 having a.balance <> coalesce(sum(%1$s), 0)""".formatted(SIGNED))
                 .query((rs, i) -> new Mismatch(rs.getObject(1, UUID.class), rs.getLong(2), rs.getLong(3)))
                 .list();
-        return new ReconciliationReport(accounts, entries, totals, mismatches);
+        var heldMismatches = jdbc.sql("""
+                select a.id, a.held, coalesce(sum(h.amount), 0)
+                from accounts a left join holds h on h.debit_account_id = a.id and h.status = 'AUTHORIZED'
+                group by a.id, a.held
+                having a.held <> coalesce(sum(h.amount), 0)""")
+                .query((rs, i) -> new Mismatch(rs.getObject(1, UUID.class), rs.getLong(2), rs.getLong(3)))
+                .list();
+        return new ReconciliationReport(accounts, entries, totals, mismatches, heldMismatches);
     }
 }

@@ -44,7 +44,7 @@ class JpaAccountStore implements AccountStore {
     public void saveBalance(Account account) {
         // The entity is already managed (locked earlier in this transaction); dirty checking writes it at commit.
         AccountEntity e = em.find(AccountEntity.class, account.id());
-        e.setBalance(account.balance());
+        e.setBalances(account.balance(), account.held());
     }
 
     @Override

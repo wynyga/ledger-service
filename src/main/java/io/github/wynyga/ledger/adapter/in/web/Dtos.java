@@ -26,10 +26,12 @@ final class Dtos {
             @NotBlank String currency) {
     }
 
-    record AccountResponse(UUID id, UUID ownerId, String currency, long balance, String status, Instant createdAt) {
+    /** available = balance - held: what transfers and new holds may use. */
+    record AccountResponse(UUID id, UUID ownerId, String currency, long balance, long held, long available,
+            String status, Instant createdAt) {
         static AccountResponse of(Account a) {
-            return new AccountResponse(a.id(), a.ownerId(), a.currency(), a.balance(), a.status().name(),
-                    a.createdAt());
+            return new AccountResponse(a.id(), a.ownerId(), a.currency(), a.balance(), a.held(), a.available(),
+                    a.status().name(), a.createdAt());
         }
     }
 
@@ -51,9 +53,11 @@ final class Dtos {
     }
 
     record ReconciliationResponse(boolean clean, long accounts, long entries,
-            List<ReconciliationReport.CurrencyTotal> totals, List<ReconciliationReport.Mismatch> mismatches) {
+            List<ReconciliationReport.CurrencyTotal> totals, List<ReconciliationReport.Mismatch> mismatches,
+            List<ReconciliationReport.Mismatch> heldMismatches) {
         static ReconciliationResponse of(ReconciliationReport r) {
-            return new ReconciliationResponse(r.clean(), r.accounts(), r.entries(), r.totals(), r.mismatches());
+            return new ReconciliationResponse(r.clean(), r.accounts(), r.entries(), r.totals(), r.mismatches(),
+                    r.heldMismatches());
         }
     }
 }

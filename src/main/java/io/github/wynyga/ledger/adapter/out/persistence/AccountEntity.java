@@ -26,6 +26,10 @@ public class AccountEntity {
     @Column(nullable = false)
     private long balance;
 
+    /** Reserved by active holds. */
+    @Column(nullable = false)
+    private long held;
+
     @Column(name = "allow_negative", nullable = false)
     private boolean allowNegative;
 
@@ -48,6 +52,7 @@ public class AccountEntity {
         e.ownerId = a.ownerId();
         e.currency = a.currency();
         e.balance = a.balance();
+        e.held = a.held();
         e.allowNegative = a.allowNegative();
         e.status = a.status();
         e.createdAt = a.createdAt();
@@ -55,10 +60,11 @@ public class AccountEntity {
     }
 
     Account toDomain() {
-        return new Account(id, ownerId, currency, balance, allowNegative, status, createdAt);
+        return new Account(id, ownerId, currency, balance, held, allowNegative, status, createdAt);
     }
 
-    void setBalance(long balance) {
+    void setBalances(long balance, long held) {
         this.balance = balance;
+        this.held = held;
     }
 }

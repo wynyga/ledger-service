@@ -77,6 +77,29 @@ Errors are RFC 9457 problem details (`application/problem+json`) with a stable `
 `INSUFFICIENT_FUNDS`, `CURRENCY_MISMATCH`, `SAME_ACCOUNT`, `ACCOUNT_INACTIVE` (422), `IDEMPOTENCY_KEY_REUSED` (409),
 `VALIDATION_FAILED` and `IDEMPOTENCY_KEY_MISSING` (400).
 
+## Holds: authorise, then capture or release
+
+Card payments do not move money when the card is swiped: the amount is reserved first and settled later, often for
+less (a hotel deposit, a fuel pump). A hold does the same.
+
+| Step | Who | Effect |
+|---|---|---|
+| `POST /api/v1/holds` | owner of the payer account | `held += amount`; balance unchanged; needs `Idempotency-Key` |
+| `POST /api/v1/holds/{id}/capture` | owner of the receiver account | one `CAPTURE` transfer for 1..amount; the whole reservation is freed |
+| `POST /api/v1/holds/{id}/release` | either side | `held -= amount` |
+| expiry (every 30 s) | the system | same as release, status `EXPIRED`; capture refuses an expired hold even before the sweep |
+
+- **Spendable money is `balance - held`.** Transfers and new holds check it; the database enforces it too
+  (`check (allow_negative or balance - held >= 0)`).
+- **A hold is not a ledger entry.** Nothing moves until capture, so the entries stay the single record of money that
+  moved; `held` is a reservation on top. Reconciliation also checks that each account's `held` equals the sum of its
+  active holds.
+- **Exactly one settlement.** Capture, release and expiry all lock the payer account and then the hold row, and act
+  only on an `AUTHORIZED` hold. A capture racing a release: one wins, the other gets `409 HOLD_NOT_ACTIVE`.
+  Repeating a successful capture (same amount) or release returns it unchanged.
+- **Lock order** everywhere: accounts by id, then the hold. Transfers lock only accounts, in the same order, so
+  nothing can deadlock.
+
 ## Events: transactional outbox
 
 Other systems (notifications, fraud checks, a data warehouse) need to know when money moved. Publishing to Kafka
@@ -168,6 +191,9 @@ adapter implements it with `TransactionTemplate`.
     balance, reconciliation is clean and the total is unchanged.
 - **Security tests**: missing, malformed, tampered, expired and foreign-issuer tokens; ownership of accounts and
   transfers; admin-only deposits and reconciliation; per-user idempotency keys; registration and login rules.
+- **Hold tests**: domain rules (reserve, partial capture, refused capture restores the reservation, release,
+  expiry), the HTTP flow and permissions, and a race of 60 holds and transfers on one account followed by a capture
+  and a release racing for every hold.
 - **Outbox tests**: the relay against fakes (order, stop on failure, backoff, recovery), and end to end with a real
   Kafka broker (Testcontainers): a transfer arrives on the topic, a refused transfer never does.
 - **Architecture test** (ArchUnit): `domain` and `application` do not depend on Spring, Jakarta or the adapters.
@@ -175,4 +201,3 @@ adapter implements it with `TransactionTemplate`.
 ## Later phases
 
 1. **Load test**: k6 script and published numbers (transfers per second, p99 latency, zero reconciliation difference).
-2. **Holds**: authorise-then-capture (reserve funds, then settle or release), as card payments do.
