@@ -5,6 +5,7 @@ import io.github.wynyga.ledger.adapter.in.web.Dtos.EntryResponse;
 import io.github.wynyga.ledger.adapter.in.web.Dtos.OpenAccountRequest;
 import io.github.wynyga.ledger.application.AccountService;
 import io.github.wynyga.ledger.domain.Account;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -38,12 +39,12 @@ class AccountController {
     }
 
     @GetMapping("/{id}")
-    AccountResponse get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+    AccountResponse get(@AuthenticationPrincipal Jwt jwt, @Parameter(example = "REPLACE-with-id-from-POST-/api/v1/accounts") @PathVariable UUID id) {
         return AccountResponse.of(accounts.get(Callers.from(jwt), id));
     }
 
     @GetMapping("/{id}/entries")
-    List<EntryResponse> entries(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+    List<EntryResponse> entries(@AuthenticationPrincipal Jwt jwt, @Parameter(example = "REPLACE-with-id-from-POST-/api/v1/accounts") @PathVariable UUID id,
             @RequestParam(defaultValue = "50") int limit) {
         return accounts.statement(Callers.from(jwt), id, limit).stream().map(EntryResponse::of).toList();
     }

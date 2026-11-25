@@ -4,6 +4,7 @@ import io.github.wynyga.ledger.application.ReconciliationReport;
 import io.github.wynyga.ledger.domain.Account;
 import io.github.wynyga.ledger.domain.Entry;
 import io.github.wynyga.ledger.domain.Transfer;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -16,14 +17,17 @@ final class Dtos {
     private Dtos() {
     }
 
-    record OpenAccountRequest(@NotBlank String currency) {
+    record OpenAccountRequest(@Schema(example = "IDR", description = "IDR or USD") @NotBlank String currency) {
     }
 
-    record DepositRequest(@NotNull UUID accountId, @Positive long amount) {
+    record DepositRequest(@Schema(example = "REPLACE-with-id-from-POST-/api/v1/accounts") @NotNull UUID accountId,
+            @Schema(example = "100000", description = "Minor units: 1 = Rp1") @Positive long amount) {
     }
 
-    record TransferRequest(@NotNull UUID fromAccountId, @NotNull UUID toAccountId, @Positive long amount,
-            @NotBlank String currency) {
+    record TransferRequest(@Schema(example = "REPLACE-with-id-from-POST-/api/v1/accounts", description = "Your own account") @NotNull UUID fromAccountId,
+            @Schema(example = "REPLACE-with-a-second-account-id", description = "Any account") @NotNull UUID toAccountId,
+            @Schema(example = "30000", description = "Minor units: 1 = Rp1") @Positive long amount,
+            @Schema(example = "IDR") @NotBlank String currency) {
     }
 
     /** available = balance - held: what transfers and new holds may use. */

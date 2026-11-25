@@ -3,6 +3,7 @@ package io.github.wynyga.ledger.adapter.in.web;
 import io.github.wynyga.ledger.application.AuthService;
 import io.github.wynyga.ledger.application.TokenIssuer.AccessToken;
 import io.github.wynyga.ledger.domain.User;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -24,7 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/auth")
 class AuthController {
 
-    record Credentials(@NotBlank String username, @NotBlank String password) {
+    record Credentials(@Schema(example = "alice") @NotBlank String username,
+            @Schema(example = "alice-password", description = "At least 10 characters") @NotBlank String password) {
     }
 
     record UserResponse(UUID id, String username, String role, Instant createdAt) {

@@ -7,6 +7,7 @@ import io.github.wynyga.ledger.adapter.in.web.Dtos.TransferResponse;
 import io.github.wynyga.ledger.application.ReconciliationService;
 import io.github.wynyga.ledger.application.TransferService;
 import io.github.wynyga.ledger.application.TransferService.PostResult;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -28,6 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
 class TransferController {
     static final String IDEMPOTENCY_KEY = "Idempotency-Key";
     static final String REPLAYED = "Idempotent-Replayed";
+    static final String KEY_HELP = "Any unique text. Execute again with the same key: the first result comes back"
+            + " (200, Idempotent-Replayed: true) and no money moves twice. Use a new key for a new request.";
 
     private final TransferService transfers;
     private final ReconciliationService reconciliation;
@@ -39,19 +42,22 @@ class TransferController {
 
     @PostMapping("/deposits")
     ResponseEntity<TransferResponse> deposit(@AuthenticationPrincipal Jwt jwt,
+            @Parameter(example = "deposit-1", description = KEY_HELP)
             @RequestHeader(IDEMPOTENCY_KEY) String key, @Valid @RequestBody DepositRequest req) {
         return respond(transfers.deposit(Callers.from(jwt), key, req.accountId(), req.amount()));
     }
 
     @PostMapping("/transfers")
     ResponseEntity<TransferResponse> transfer(@AuthenticationPrincipal Jwt jwt,
+            @Parameter(example = "transfer-1", description = KEY_HELP)
             @RequestHeader(IDEMPOTENCY_KEY) String key, @Valid @RequestBody TransferRequest req) {
         return respond(transfers.transfer(Callers.from(jwt), key, req.fromAccountId(), req.toAccountId(),
                 req.amount(), req.currency()));
     }
 
     @GetMapping("/transfers/{id}")
-    TransferResponse get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+    TransferResponse get(@AuthenticationPrincipal Jwt jwt,
+            @Parameter(example = "REPLACE-with-the-id") @PathVariable UUID id) {
         return TransferResponse.of(transfers.get(Callers.from(jwt), id));
     }
 

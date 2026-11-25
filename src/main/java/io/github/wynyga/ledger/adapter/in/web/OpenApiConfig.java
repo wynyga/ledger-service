@@ -1,6 +1,7 @@
 package io.github.wynyga.ledger.adapter.in.web;
 
 import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.examples.Example;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
@@ -32,18 +33,32 @@ class OpenApiConfig {
             @Value("${ledger.admin.username:admin}") String username,
             @Value("${ledger.admin.password:}") String password) {
         return api -> {
-            if (!enabled || password.isBlank() || api.getPaths() == null || api.getPaths().get(TOKEN_PATH) == null) {
+            if (api.getPaths() == null || api.getPaths().get(TOKEN_PATH) == null) {
                 return;
             }
             var op = api.getPaths().get(TOKEN_PATH).getPost();
             if (op == null || op.getRequestBody() == null || op.getRequestBody().getContent() == null) {
                 return;
             }
-            Map<String, Object> example = new LinkedHashMap<>();
-            example.put("username", username);
-            example.put("password", password);
-            op.getRequestBody().getContent().values().forEach(media -> media.setExample(example));
+            // Swagger UI shows these as a drop-down; the first one fills the body.
+            Map<String, Example> examples = new LinkedHashMap<>();
+            if (enabled && !password.isBlank()) {
+                examples.put("admin", credentials("Admin from .env (records deposits)", username, password));
+            }
+            examples.put("alice", credentials("The user registered with the example of /auth/register", "alice",
+                    "alice-password"));
+            op.getRequestBody().getContent().values().forEach(media -> {
+                media.setExample(null);
+                media.setExamples(examples);
+            });
         };
+    }
+
+    private static Example credentials(String summary, String username, String password) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("username", username);
+        body.put("password", password);
+        return new Example().summary(summary).value(body);
     }
 
     @Bean
