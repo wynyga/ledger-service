@@ -5,6 +5,10 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,6 +19,32 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 class OpenApiConfig {
     static final String BEARER = "bearer";
+    static final String TOKEN_PATH = "/api/v1/auth/token";
+
+    /**
+     * Development convenience: pre-fills the body of {@code POST /api/v1/auth/token} in Swagger UI with the admin
+     * credentials from ADMIN_USERNAME / ADMIN_PASSWORD. Off unless SWAGGER_PREFILL_ADMIN_LOGIN=true, because the
+     * example is public to anyone who can open the docs. The values come from the environment (.env), never from
+     * the code.
+     */
+    @Bean
+    OpenApiCustomizer adminLoginExample(@Value("${ledger.swagger.prefill-admin-login:false}") boolean enabled,
+            @Value("${ledger.admin.username:admin}") String username,
+            @Value("${ledger.admin.password:}") String password) {
+        return api -> {
+            if (!enabled || password.isBlank() || api.getPaths() == null || api.getPaths().get(TOKEN_PATH) == null) {
+                return;
+            }
+            var op = api.getPaths().get(TOKEN_PATH).getPost();
+            if (op == null || op.getRequestBody() == null || op.getRequestBody().getContent() == null) {
+                return;
+            }
+            Map<String, Object> example = new LinkedHashMap<>();
+            example.put("username", username);
+            example.put("password", password);
+            op.getRequestBody().getContent().values().forEach(media -> media.setExample(example));
+        };
+    }
 
     @Bean
     OpenAPI ledgerOpenApi() {
