@@ -9,6 +9,11 @@ services:
       - "5440:5432"
     volumes:
       - ledger-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledger -d ledger"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
 
   # Single-node Kafka in KRaft mode (no ZooKeeper). The app connects from the host on localhost:9094.
   kafka:
@@ -27,6 +32,24 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
     ports:
       - "9094:9094"
+
+  # The service itself, next to its database and broker: `docker compose --profile app up -d --build`
+  # (build the jar first). Without the profile, compose starts only PostgreSQL and Kafka for `./mvnw spring-boot:run`.
+  app:
+    profiles: ["app"]
+    build: .
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/ledger
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_SECRET: ${JWT_SECRET:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
 
 volumes:
   ledger-data:

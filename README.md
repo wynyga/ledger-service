@@ -57,6 +57,13 @@ On Windows PowerShell: `$env:ADMIN_PASSWORD = "choose-a-long-one"` and `.\mvnw.c
 
 Or without compose, with a throwaway PostgreSQL and Kafka started by Testcontainers: `./mvnw spring-boot:test-run`.
 
+Or everything in Docker, the service included (this is how the load test runs):
+
+```bash
+./mvnw -DskipTests package
+JWT_SECRET=$(openssl rand -base64 32) ADMIN_PASSWORD='choose-a-long-one' docker compose --profile app up -d --build
+```
+
 ## Try it
 
 ```bash
@@ -130,6 +137,43 @@ catching up in order afterwards.
 `SecurityTests` covers missing, malformed, tampered, expired and foreign-issuer tokens, account and transfer
 ownership, admin-only operations, per-user idempotency keys, and the registration and login rules.
 
+## Load test
+
+[`loadtest/ledger.js`](loadtest/ledger.js) (k6). Setup creates 65 users with funded accounts; then three scenarios run
+one after another. Everything ran on one laptop (Intel i7-11390H, 4 cores / 8 threads, 16 GB) under Docker Desktop
+(WSL2, 8 vCPU, 8 GB): the service (JRE 21), PostgreSQL 17, Kafka 4.1 and k6 2.4 on one Docker network. One warm-up
+run was discarded first, because a cold JVM is about half as fast.
+
+| Scenario | VUs | Requests/s | p50 | p95 | p99 | Failed |
+|---|---|---|---|---|---|---|
+| `spread`: transfers between 64 accounts | 32 | 346 | 72 ms | 204 ms | 408 ms | 0 % |
+| `hot`: everyone pays one merchant account | 32 | 111 | 250 ms | 577 ms | 1,459 ms | 0 % |
+| `holds`: authorise, then partial capture (2 requests) | 16 | 112 | 134 ms | 286 ms | 908 ms | 0 % |
+
+Across warm runs `spread` ranged from 346 to 456 requests/s. After the run, reconciliation was clean (84,424 entries
+summing to 0) and the outbox backlog never went above 192 events; commit-to-Kafka-ack took 352 ms on average and
+830 ms at p99.
+
+```bash
+docker compose --profile app up -d --build          # with ADMIN_PASSWORD set, see Run
+docker run --rm --network ledger-service_default -v "$PWD/loadtest:/scripts" \
+  -e BASE_URL=http://app:8080 -e ADMIN_PASSWORD='choose-a-long-one' grafana/k6 run /scripts/ledger.js
+```
+
+**What limits it.** PostgreSQL's wait events during `spread` were mostly `WALWrite`/`WalSync` (waiting for the commit
+to reach the virtual disk) and `Lock:transactionid` (waiting for an account row another transfer holds). The `hot`
+scenario shows the cost of the no-overdraft guarantee: every transfer locks the same merchant row, so they run one at
+a time, about 9 ms each. Real systems spread such an account over several sub-accounts or credit it in batches.
+
+**What the load test found.**
+
+1. The outbox relay sent one message at a time and fell behind: 28,270 events were waiting after two runs. It now
+   hands each batch of up to 500 to the Kafka producer at once (see the design); the backlog stays under 200.
+2. With the service on Windows and the database behind Docker Desktop's port forwarding, every SQL round trip paid
+   for the proxy: 97 requests/s instead of 346. The service now has a Dockerfile and a compose profile.
+3. A bug in the first version of the script (it sent some transfers to the sender's own account) produced 0.03 %
+   `422 SAME_ACCOUNT`: the service refused them correctly.
+
 ## Broker outage drill
 
 Run against `docker compose` (PostgreSQL + Kafka) with `docker compose stop kafka` for 25 seconds:
@@ -147,5 +191,4 @@ consumers deduplicate on `eventId`.
 
 ## Next
 
-Refresh tokens and revocation, and a k6 load test with published
-numbers. See the last section of the design.
+Refresh tokens and revocation, and spreading hot accounts over sub-accounts. See the design.

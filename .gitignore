@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### load test output ###
+loadtest/last-summary.json
